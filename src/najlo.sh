@@ -160,9 +160,10 @@ function lex_makefile() {
     done < "$input"
 }
 
+function najlo_main() {
 #TODO: add real option handling
-prog_name="$(readlink -f "$0")"
-base_prog_name="$(basename "$prog_name")"
+local prog_name="$(readlink -f "$0")"
+local base_prog_name="$(basename "$prog_name")"
 case "$1" in
     "-s") {
       shift
@@ -186,3 +187,4 @@ case "$1" in
     }
     ;;
 esac
+}
