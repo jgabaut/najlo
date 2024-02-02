@@ -1,0 +1,25 @@
+#!/usr/local/bin/najlo
+foo = 10
+
+myrule: myrecipe
+	@echo "HI"
+
+myrecipe:
+	@echo "HELLO"
+	touch $^
+
+toot:
+	@echo "TOOT"
+
+./anvil: toot myrecipe
+	@echo -e "\033[1;35m[Makefile]\e[0m    Bootstrapping \"./$anvil\":"
+
+
+all: myrule toot
+
+%.a: %.o
+	@echo "Transmute"
+
+.DEFAULT_GOAL := all
+
+hey = 10
