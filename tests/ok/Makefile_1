@@ -1,4 +1,4 @@
-#!/usr/local/bin/najlo
+#!/usr/local/bin/najlo -s
 foo = 10
 
 myrule: myrecipe
