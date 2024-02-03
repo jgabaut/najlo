@@ -72,6 +72,7 @@ function lex_makefile() {
     local line=""
     local ingrs_arr=""
     local ingr_i=0
+    local ingr_mod_time=""
     while read -r line; do {
         #[[ ! -z "$line" ]] && printf "line: {%s}\n" "$line"
         comment="$(cut -f2 -d'#' <<< "$line")"
@@ -85,14 +86,19 @@ function lex_makefile() {
                 inside_rule=1
                 last_rulename="$rulename"
                 ingr_i=0
-                printf "{RULE} -> {%s}" "$rulename"
+                mod_time="$(date -r "$rulename" +%s 2>/dev/null)"
+                [[ -z "$mod_time" ]] && mod_time="NO_TIME"
+                printf "{RULE} -> {%s} <- {%s}" "$rulename" "$mod_time"
                 printf "\n\t<- {DEPS} -> {%s} ->" "$rule_ingredients"
                 ingrs_arr=( $rule_ingredients )
                 printf " [#%s] ->" "${#ingrs_arr[@]}"
                 for ingr in "${ingrs_arr[@]}" ; do {
                     #printf "\n\t[[ingr: $ingr]] - [[$rule_ingredients]]\n"
                     if [[ ! -z "$ingr" ]] ; then {
-                        printf "\n\t\t{INGR} - {%s} [%s]," "$ingr" "$ingr_i"
+                        printf "\n\t\t{INGR} - {%s} [%s], " "$ingr" "$ingr_i"
+                        ingr_mod_time="$(date -r "$rulename" +%s 2>/dev/null)"
+                        [[ -z "$ingr_mod_time" ]] && ingr_mod_time="NO_TIME"
+                        printf "[%s]" "$ingr_mod_time"
                     } else {
                         printf "ERROR????????\n"
                     }

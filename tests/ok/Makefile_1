@@ -1,21 +1,21 @@
 #!/usr/local/bin/najlo -s
 foo = 10
 
-myrule: myrecipe
+src/najlo.sh: LICENSE
 	@echo "HI"
 
-myrecipe:
+src/najlo_cli.sh:
 	@echo "HELLO"
 	touch $^
 
 toot:
 	@echo "TOOT"
 
-./anvil: toot myrecipe
+./anvil: toot src/najlo.sh
 	@echo -e "\033[1;35m[Makefile]\e[0m    Bootstrapping \"./$anvil\":"
 
 
-all: myrule toot
+all: src/najlo.sh toot
 
 %.a: %.o
 	@echo "Transmute"
