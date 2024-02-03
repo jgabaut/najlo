@@ -64,6 +64,8 @@ function lex_makefile() {
 
     [[ -f "$input" ]] || { printf "{%s} was not a valid file.\n" "$input"; exit 1 ; }
 
+    local dbg_print=0
+
     local rulename=""
     local rule_ingredients=""
     local last_rulename=""
@@ -72,7 +74,14 @@ function lex_makefile() {
     local line=""
     local ingrs_arr=""
     local ingr_i=0
+    local rulexpr_i=0
+    local rule_i=0
     local ingr_mod_time=""
+    local mainexpr_i=0
+    local -a mainexpr_arr=()
+    local -a rules_arr=()
+    local -a ruleingrs_arr=()
+    local -a rulexpr_arr=()
     while read -r line; do {
         #[[ ! -z "$line" ]] && printf "line: {%s}\n" "$line"
         comment="$(cut -f2 -d'#' <<< "$line")"
@@ -88,17 +97,18 @@ function lex_makefile() {
                 ingr_i=0
                 mod_time="$(date -r "$rulename" +%s 2>/dev/null)"
                 [[ -z "$mod_time" ]] && mod_time="NO_TIME"
-                printf "{RULE} -> {%s} <- {%s}" "$rulename" "$mod_time"
-                printf "\n\t<- {DEPS} -> {%s} ->" "$rule_ingredients"
+                [[ "$dbg_print" -gt 0 ]] && printf "{RULE} [#%s] -> {%s} <- {%s}" "$rule_i" "$rulename" "$mod_time"
+                [[ "$dbg_print" -gt 0 ]] && printf "\n\t<- {DEPS} -> {%s} ->" "$rule_ingredients"
                 ingrs_arr=( $rule_ingredients )
-                printf " [#%s] ->" "${#ingrs_arr[@]}"
+                [[ "$dbg_print" -gt 0 ]] && printf " [#%s] ->" "${#ingrs_arr[@]}"
                 for ingr in "${ingrs_arr[@]}" ; do {
                     #printf "\n\t[[ingr: $ingr]] - [[$rule_ingredients]]\n"
                     if [[ ! -z "$ingr" ]] ; then {
-                        printf "\n\t\t{INGR} - {%s} [%s], " "$ingr" "$ingr_i"
+                        [[ "$dbg_print" -gt 0 ]] && printf "\n\t\t{INGR} - {%s} [%s], " "$ingr" "$ingr_i"
                         ingr_mod_time="$(date -r "$rulename" +%s 2>/dev/null)"
                         [[ -z "$ingr_mod_time" ]] && ingr_mod_time="NO_TIME"
-                        printf "[%s]" "$ingr_mod_time"
+                        [[ "$dbg_print" -gt 0 ]] && printf "[%s]" "$ingr_mod_time"
+                        ruleingrs_arr[$rule_i]="${ruleingrs_arr[$rule_i]}{$ingr} {[$ingr_i], [$ingr_mod_time]}, "
                     } else {
                         printf "ERROR????????\n"
                     }
@@ -107,8 +117,12 @@ function lex_makefile() {
                 }
                 done
                 # Check if rule has no deps
-                [[ $ingr_i -eq 0 ]] && printf "\n\t\t{NO_DEPS}"
-                printf "\n\t};\n"
+                if [[ $ingr_i -eq 0 ]] ; then {
+                    [[ "$dbg_print" -gt 0 ]] && printf "\n\t\t{NO_DEPS}"
+                    ruleingrs_arr[$rule_i]="{NO_DEPS}"
+                }
+                fi
+                [[ "$dbg_print" -gt 0 ]] && printf "\n\t};\n"
                 #while read -r rule_line; do {
                 #    rulelines_read="$((rulelines_read +1))"
                 #    if [[ "$rule_line" =~ $rule_line_rgx ]] ; then {
@@ -121,25 +135,39 @@ function lex_makefile() {
                 #    fi
                 #}
                 #done
+                #{RULE: $rulename #$rule_i INGR} -
+                ruleingrs_arr[$rule_i]="{RULE: $rulename #$rule_i} <-- [${ruleingrs_arr[$rule_i]}]"
+                rulexpr_arr[$rule_i]="{RULE: $rulename #$rule_i} --> [${rulexpr_arr[$rule_i]}]"
+                rules_arr[$rule_i]="{RULE} [#$rule_i] -> {$rulename} <- {$mod_time} <- {DEPS} -> {$rule_ingredients} -> [#${#ingrs_arr[@]}"
+                rule_i="$(($rule_i +1))"
+
             } else {
               # Line did not match the regex
               if [[ -z "$last_rulename" ]]; then {
                 # We found an expression outside of any rule (main scope)
-                printf "{EXPR} -> "
-                printf "{%s}\n" "$line"
+                #
+                # We don't have to print them now if we collect them and group print later
+                #
+                [[ "$dbg_print" -gt 0 ]] && printf "{EXPR_MAIN} -> "
+                [[ "$dbg_print" -gt 0 ]] && printf "{%s}, [#%s],\n" "$line" "$mainexpr_i"
+                mainexpr_arr[$mainexpr_i]="{EXPR_MAIN} -> {$line}, [#$mainexpr_i]"
+                mainexpr_i="$(($mainexpr_i +1))"
               } elif [[ "$inside_rule" -eq 1 ]]; then {
                 :
                 #printf "Inside RULE{%s} -> {last: %s}\n" "$rulename" "$last_rulename"
               } elif [[ -z "$line" ]]; then {
                 #An empty line breaks the rule context.
                 inside_rule=0
+                rulexpr_i=0
               }
               fi
               if [[ "$inside_rule" -eq 1 ]] ; then {
                 # We found an expression inside a rule (rule scope)
-                printf "\t{RULE_EXPR} -> {%s}" "$line"
+                [[ "$dbg_print" -gt 0 ]] && printf "\t{RULE_EXPR} -> {%s}, [#%s]," "$line" "$rulexpr_i"
                 #printf "In rule: {%s}\n" "$last_rulename"
-                printf "\n"
+                [[ "$dbg_print" -gt 0 ]] && printf "\n"
+                rulexpr_arr[$rule_i]="${rulexpr_arr[$rule_i]}{RULE_EXPR #$rulexpr_i} {$line}, "
+                rulexpr_i="$(($rulexpr_i +1))"
               }
               fi
             }
@@ -147,6 +175,7 @@ function lex_makefile() {
         } else {
             # We didn't find a valid rulename
             inside_rule=0
+            rulexpr_i=0
             # We reset last_rulename in order to catch any further EXPR after encountering at least one rule
             last_rulename=""
             rule_ingredients="$(cut -f2 -d":" <<< "$line")"
@@ -156,7 +185,7 @@ function lex_makefile() {
               printf "RULE_INGREDIENTS: {%s}\n" "$rule_ingredients"
             } elif [[ ! -z "$line" ]]; then {
                 # We found an EXPR (non-empty line, not matching a rule)
-                printf "{EXPR} -> "
+                printf "{EXPR_???} -> "
                 printf "{%s}\n" "$line"
             }
             fi
@@ -164,6 +193,34 @@ function lex_makefile() {
         fi
     }
     done < "$input"
+
+    printf "{MAIN} -> {\n"
+    for mexpr in "${mainexpr_arr[@]}"; do {
+        printf "\t[%s],\n" "$mexpr"
+    }
+    done
+    printf "}\n"
+
+    printf "{RULES} -> {\n"
+    for rul in "${rules_arr[@]}"; do {
+        printf "\t[%s],\n" "$rul"
+    }
+    done
+    printf "}\n"
+
+    printf "{DEPS} -> {\n"
+    for dep in "${ruleingrs_arr[@]}"; do {
+        printf "\t[%s],\n" "$dep"
+    }
+    done
+    printf "}\n"
+
+    printf "{RULE_EXPRS} -> {\n"
+    for r_express in "${rulexpr_arr[@]}"; do {
+        printf "\t[%s],\n" "$r_express"
+    }
+    done
+    printf "}\n"
 }
 
 function najlo_main() {
