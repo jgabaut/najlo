@@ -139,7 +139,7 @@ function lex_makefile() {
         comment="$(cut -f2 -d'#' <<< "$line")"
         line="$(cut -f1 -d'#' <<< "$line")"
         rulename="$(cut -f1 -d":" <<< "$line")"
-        rule_ingredients="$(cut -f2 -d":" <<< "$line")"
+        rule_ingredients="$(awk -F": " '{print $2}' <<< "$line")"
         if [[ "$line" =~ $rule_rgx ]] ; then {
             # Line matched rule regex
             inside_rule=1
