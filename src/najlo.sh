@@ -261,7 +261,7 @@ function lex_makefile() {
     local rl_i=0
     printf "{RULE_EXPRS} -> {\n"
     for r_express in "${rulexpr_arr[@]}"; do {
-        printf "\t{%s} --> [%s],\n" "${rules_arr[$rl_i]}" "$r_express"
+        printf "\t[[%s] --> [%s]],\n" "${rules_arr[$rl_i]}" "$r_express"
         rl_i="$((rl_i +1))"
     }
     done
