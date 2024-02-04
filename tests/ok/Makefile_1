@@ -16,8 +16,13 @@ toot:
 
 
 all: src/najlo.sh toot
+	@echo "Transmute"
+	@echo "Transmute"
 
 %.a: %.o
+	@echo "Transmute"
+	@echo "Transmute"
+	@echo "Transmute"
 	@echo "Transmute"
 
 .DEFAULT_GOAL := all
