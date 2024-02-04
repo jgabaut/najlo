@@ -110,8 +110,8 @@ function lex_makefile() {
     fi
     local skip_recap="$3"
     if ! [[ "$skip_recap" =~ $lvl_regex ]] ; then {
-        [[ -n "$skip_recap" ]] && printf "Invalid arg: {%s}. Using 1\n" "$3"
-        skip_recap=1
+        [[ -n "$skip_recap" ]] && printf "Invalid arg: {%s}. Using 0\n" "$3"
+        skip_recap=0
     }
     fi
 
