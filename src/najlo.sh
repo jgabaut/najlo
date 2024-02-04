@@ -114,6 +114,12 @@ function lex_makefile() {
         skip_recap=0
     }
     fi
+    local report_warns="$4"
+    if ! [[ "$report_warns" =~ $lvl_regex ]] ; then {
+        [[ -n "$report_warns" ]] && printf "Invalid arg: {%s}. Using 0\n" "$4"
+        report_warns=0
+    }
+    fi
 
     [[ -f "$input" ]] || { printf "{%s} was not a valid file.\n" "$input"; exit 1 ; }
 
@@ -134,6 +140,7 @@ function lex_makefile() {
     local -a rules_arr=()
     local -a ruleingrs_arr=()
     local -a rulexpr_arr=()
+    local tot_warns=0
     while IFS= read -r line; do {
         #[[ ! -z "$line" ]] && printf "line: {%s}\n" "$line"
         comment="$(cut -f2 -d'#' <<< "$line")"
@@ -210,8 +217,16 @@ function lex_makefile() {
             #
             # We don't have to print them now if we collect them and group print later
             #
+            local start_w_space_regex='^ +'
             [[ "$dbg_print" -gt 0 ]] && printf "{EXPR_MAIN} -> "
             [[ "$dbg_print" -gt 0 ]] && printf "{%s}, [#%s],\n" "$line" "$mainexpr_i"
+            if [[ "$report_warns" -gt 0 && "$line" =~ $start_w_space_regex ]] ; then {
+                printf "\033[1;33mWARN:    a recipe line must start with a tab.\033[0m\n"
+                printf "\033[1;33m%s\033[0m\n" "$line"
+                printf "\033[1;33m^^^ Any recipe line starting with a space will be interpreted as a main expression.\033[0m\n"
+                tot_warns="$((tot_warns +1))"
+            }
+            fi
             mainexpr_arr[$mainexpr_i]="{EXPR_MAIN} -> {$line}, [#$mainexpr_i]"
             mainexpr_i="$(($mainexpr_i +1))"
           }
@@ -221,7 +236,7 @@ function lex_makefile() {
     }
     done < "$input"
 
-    [[ "$skip_recap" -gt 0 ]] && return
+    [[ "$skip_recap" -gt 0 ]] && return "$tot_warns"
     printf "{MAIN} -> {\n"
     for mexpr in "${mainexpr_arr[@]}"; do {
         printf "\t[%s],\n" "$mexpr"
@@ -251,16 +266,19 @@ function lex_makefile() {
     }
     done
     printf "}\n"
+    return "$tot_warns"
 }
 
 function najlo_main() {
 #TODO: add real option handling
 local prog_name="$(readlink -f "$0")"
 local base_prog_name="$(basename "$prog_name")"
+local res=0
 case "$1" in
     "-s") {
       shift
-      lex_makefile "$@"
+      lex_makefile "$@" 0 0 1
+      res="$?"
     }
     ;;
     "-v") {
@@ -275,21 +293,26 @@ case "$1" in
     ;;
     "-d") {
       shift
-      lex_makefile "$@" 1
-      return
+      lex_makefile "$@" 1 0 1
+      res="$?"
     }
     ;;
     "-q") {
       shift
-      lex_makefile "$@" 0 1
-      return
+      lex_makefile "$@" 0 1 1
+      res="$?"
     }
     ;;
     *) {
-        echo_najlo_splash "$najlo_version" "$base_prog_name"
-        lex_makefile "$@"
-        :
+      echo_najlo_splash "$najlo_version" "$base_prog_name"
+      lex_makefile "$@" 0 0 1
+      res="$?"
     }
     ;;
 esac
+if [[ "$res" -ne 0 ]] ; then {
+  printf "%s(): errors while lexing. One of the recipe lines may be starting with a space.\n" "${FUNCNAME[0]}"
+}
+fi
+return "$res"
 }

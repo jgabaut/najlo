@@ -1,0 +1,4 @@
+
+rule: ehy
+  @echo "Untabbed"
+	@echo "Tabbed"
