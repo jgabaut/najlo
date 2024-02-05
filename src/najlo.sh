@@ -323,7 +323,7 @@ case "$1" in
     ;;
     "-d") {
       shift
-      lex_makefile "$@" 1 0 1 1
+      lex_makefile "$@" 1 0 1 0
       res="$?"
     }
     ;;
