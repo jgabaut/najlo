@@ -78,7 +78,7 @@
 # ----------------------------
 #
 
-najlo_version="0.0.2"
+najlo_version="0.0.3"
 rule_rgx='^([[:graph:]^:]+:){1,1}([[:space:]]*[[:graph:]]*)*$'
 # Define the tab character as a variable
 ruleline_mark_char=$'\t'
@@ -102,6 +102,7 @@ function echo_najlo_splash {
 function lex_makefile() {
     local lvl_regex='^[0-9]+$'
     local input="$1"
+    [[ -f "$input" ]] || { printf "{%s} was not a valid file.\n" "$input"; exit 1 ; }
     local dbg_print="$2"
     if ! [[ "$dbg_print" =~ $lvl_regex ]] ; then {
         [[ -n "$dbg_print" ]] && printf "Invalid arg: {%s}. Using 0\n" "$2"
@@ -120,10 +121,14 @@ function lex_makefile() {
         report_warns=0
     }
     fi
+    local draw_progress="$5"
+    if ! [[ "$draw_progress" =~ $lvl_regex ]] ; then {
+        [[ -n "$draw_progress" ]] && printf "Invalid arg: {%s}. Using 0\n" "$5"
+        draw_progress=0
+    }
+    fi
 
-    [[ -f "$input" ]] || { printf "{%s} was not a valid file.\n" "$input"; exit 1 ; }
-
-
+    local tot_lines="$(cut -f1 -d' ' <<< "$(wc -l "$input")")"
     local rulename=""
     local rule_ingredients=""
     local last_rulename=""
@@ -134,6 +139,7 @@ function lex_makefile() {
     local ingr_i=0
     local rulexpr_i=0
     local rule_i=0
+    local mod_time=""
     local ingr_mod_time=""
     local mainexpr_i=0
     local -a mainexpr_arr=()
@@ -141,12 +147,36 @@ function lex_makefile() {
     local -a ruleingrs_arr=()
     local -a rulexpr_arr=()
     local tot_warns=0
+    local cur_line=0
+    local PROGRESS_BAR_WIDTH=40  # Width of the progress bar
+
     while IFS= read -r line; do {
         #[[ ! -z "$line" ]] && printf "line: {%s}\n" "$line"
         comment="$(cut -f2 -d'#' <<< "$line")"
         line="$(cut -f1 -d'#' <<< "$line")"
         rulename="$(cut -f1 -d":" <<< "$line")"
         rule_ingredients="$(awk -F": " '{print $2}' <<< "$line")"
+        if [[ "$draw_progress" -gt 0 ]] ; then {
+            cur_line="$((cur_line +1))"
+            # Update progress bar
+            progress=$((cur_line * 100 / tot_lines))
+            filledWidth=$((progress * PROGRESS_BAR_WIDTH / 100))
+            emptyWidth=$((PROGRESS_BAR_WIDTH - filledWidth))
+            printf "\033[1;35m  Reading...    [" >&2
+            # Draw filled portion of the progress bar
+            for ((i = 0; i < filledWidth; ++i)); do
+                printf "#" >&2
+            done
+            # Draw empty portion of the progress bar
+            for ((i = 0; i < emptyWidth; ++i)); do
+                printf " " >&2
+            done
+            printf "]    %d%%\r\e[0m" "$progress" >&2
+        }
+        fi
+
+        # Process line
+
         if [[ "$line" =~ $rule_rgx ]] ; then {
             # Line matched rule regex
             inside_rule=1
@@ -277,7 +307,7 @@ local res=0
 case "$1" in
     "-s") {
       shift
-      lex_makefile "$@" 0 0 1
+      lex_makefile "$@" 0 0 1 1
       res="$?"
     }
     ;;
@@ -293,19 +323,19 @@ case "$1" in
     ;;
     "-d") {
       shift
-      lex_makefile "$@" 1 0 1
+      lex_makefile "$@" 1 0 1 1
       res="$?"
     }
     ;;
     "-q") {
       shift
-      lex_makefile "$@" 0 1 1
+      lex_makefile "$@" 0 1 1 0
       res="$?"
     }
     ;;
     *) {
       echo_najlo_splash "$najlo_version" "$base_prog_name"
-      lex_makefile "$@" 0 0 1
+      lex_makefile "$@" 0 0 1 1
       res="$?"
     }
     ;;
