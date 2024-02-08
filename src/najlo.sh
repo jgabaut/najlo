@@ -155,7 +155,7 @@ function lex_makefile() {
         comment="$(cut -f2 -d'#' <<< "$line")"
         line="$(cut -f1 -d'#' <<< "$line")"
         rulename="$(cut -f1 -d":" <<< "$line")"
-        rule_ingredients="$(awk -F": " '{print $2}' <<< "$line")"
+        #rule_ingredients="$(awk -F": " '{print $2}' <<< "$line")"
         if [[ "$draw_progress" -gt 0 ]] ; then {
             cur_line="$((cur_line +1))"
             # Update progress bar
@@ -175,9 +175,31 @@ function lex_makefile() {
         }
         fi
 
+        # If the line ends with "\", collect continuation
+        if [[ "$line" == *"\\" ]] ; then {
+            # Line continuation found, remove trailing backslash
+            echo "line: {$line}" >&2
+            current_line="${line%\\}"
+            echo "current_line: {$current_line}" >&2
+            # Continue reading next line and append to current_line
+            while IFS= read -r next_line; do {
+                current_line+="${next_line%\\}"
+                if [[ "$next_line" != *"\\" ]]; then {
+                    break
+                }
+                fi
+            } done
+        } else {
+            # Line does not end with "\"
+            current_line="$line"
+        }
+        fi
+
+        rule_ingredients="$(awk -F": " '{print $2}' <<< "$current_line")"
+
         # Process line
 
-        if [[ "$line" =~ $rule_rgx ]] ; then {
+        if [[ "$current_line" =~ $rule_rgx ]] ; then {
             # Line matched rule regex
             inside_rule=1
             last_rulename="$rulename"
@@ -193,7 +215,7 @@ function lex_makefile() {
                 #printf "\n\t[[ingr: $ingr]] - [[$rule_ingredients]]\n"
                 if [[ ! -z "$ingr" ]] ; then {
                     [[ "$dbg_print" -gt 0 ]] && printf "\n\t\t{INGR} - {%s} [%s], " "$ingr" "$ingr_i"
-                    ingr_mod_time="$(date -r "$rulename" +%s 2>/dev/null)"
+                    ingr_mod_time="$(date -r "$ingr" +%s 2>/dev/null)"
                     [[ -z "$ingr_mod_time" ]] && ingr_mod_time="NO_TIME"
                     [[ "$dbg_print" -gt 0 ]] && printf "[%s]" "$ingr_mod_time"
                     ruleingrs_arr[$rule_i]="${ruleingrs_arr[$rule_i]}{$ingr} {[$ingr_i], [$ingr_mod_time]}, "
@@ -214,19 +236,19 @@ function lex_makefile() {
             ruleingrs_arr[$rule_i]="{RULE: $rulename #$rule_i} <-- [${ruleingrs_arr[$rule_i]}]"
             rules_arr[$rule_i]="{RULE} [#$rule_i] -> {$rulename} <- {$mod_time} <- {DEPS} -> {$rule_ingredients} -> [#${#ingrs_arr[@]}]"
             rule_i="$(($rule_i +1))"
-        } elif [[ "$line" =~ $ruleline_rgx ]] ; then {
+        } elif [[ "$current_line" =~ $ruleline_rgx ]] ; then {
           # Line matched the ruleline regex
           #
           # Remove leading tab
-          line="$(awk -F"\t" '{print $2}' <<< "$line")"
+          current_line="$(awk -F"\t" '{print $2}' <<< "$current_line")"
             # We found an expression inside a rule (rule scope)
-            [[ "$dbg_print" -gt 0 ]] && printf "\t{RULE_EXPR} -> {%s}, [#%s]," "$line" "$rulexpr_i"
+            [[ "$dbg_print" -gt 0 ]] && printf "\t{RULE_EXPR} -> {%s}, [#%s]," "$current_line" "$rulexpr_i"
             #printf "In rule: {%s}\n" "$last_rulename"
             [[ "$dbg_print" -gt 0 ]] && printf "\n"
-            rulexpr_arr[$rule_i]="${rulexpr_arr[$rule_i]}{RULE_EXPR #$rulexpr_i} {$line}, "
+            rulexpr_arr[$rule_i]="${rulexpr_arr[$rule_i]}{RULE_EXPR #$rulexpr_i} {$current_line}, "
             rulexpr_i="$(($rulexpr_i +1))"
         } else {
-          if [[ -z "$line" ]] ; then {
+          if [[ -z "$current_line" ]] ; then {
               continue
           } else {
             inside_rule=0
@@ -239,8 +261,8 @@ function lex_makefile() {
             # We don't have to print them now if we collect them and group print later
             #
             [[ "$dbg_print" -gt 0 ]] && printf "{EXPR_MAIN} -> "
-            [[ "$dbg_print" -gt 0 ]] && printf "{%s}, [#%s],\n" "$line" "$mainexpr_i"
-            mainexpr_arr[$mainexpr_i]="{EXPR_MAIN} -> {$line}, [#$mainexpr_i]"
+            [[ "$dbg_print" -gt 0 ]] && printf "{%s}, [#%s],\n" "$current_line" "$mainexpr_i"
+            mainexpr_arr[$mainexpr_i]="{EXPR_MAIN} -> {$current_line}, [#$mainexpr_i]"
             mainexpr_i="$(($mainexpr_i +1))"
           } else {
             # We found an expression outside a rule, after finding at least one rule (main scope)
@@ -249,15 +271,15 @@ function lex_makefile() {
             #
             local start_w_space_regex='^ +'
             [[ "$dbg_print" -gt 0 ]] && printf "{EXPR_MAIN} -> "
-            [[ "$dbg_print" -gt 0 ]] && printf "{%s}, [#%s],\n" "$line" "$mainexpr_i"
-            if [[ "$report_warns" -gt 0 && "$line" =~ $start_w_space_regex ]] ; then {
+            [[ "$dbg_print" -gt 0 ]] && printf "{%s}, [#%s],\n" "$current_line" "$mainexpr_i"
+            if [[ "$report_warns" -gt 0 && "$current_line" =~ $start_w_space_regex ]] ; then {
                 printf "\033[1;33mWARN:    a recipe line must start with a tab.\033[0m\n"
-                printf "\033[1;33m%s\033[0m\n" "$line"
+                printf "\033[1;33m%s\033[0m\n" "$current_line"
                 printf "\033[1;33m^^^ Any recipe line starting with a space will be interpreted as a main expression.\033[0m\n"
                 tot_warns="$((tot_warns +1))"
             }
             fi
-            mainexpr_arr[$mainexpr_i]="{EXPR_MAIN} -> {$line}, [#$mainexpr_i]"
+            mainexpr_arr[$mainexpr_i]="{EXPR_MAIN} -> {$current_line}, [#$mainexpr_i]"
             mainexpr_i="$(($mainexpr_i +1))"
           }
           fi
