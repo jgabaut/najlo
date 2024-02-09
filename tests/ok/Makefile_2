@@ -1,0 +1,16 @@
+
+do this\
+	or this;
+
+toot: this \
+	that\
+	those\
+	then\
+	here\
+	src/najlo_cli.sh
+	@echo "Needs one"
+
+
+boop: hey
+	@echo "BAD"\
+		"man"
