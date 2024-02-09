@@ -78,7 +78,7 @@
 # ----------------------------
 #
 
-najlo_version="0.0.3"
+najlo_version="0.0.4"
 rule_rgx='^([[:graph:]^:]+:){1,1}([[:space:]]*[[:graph:]]*)*$'
 # Define the tab character as a variable
 ruleline_mark_char=$'\t'
@@ -184,6 +184,7 @@ function lex_makefile() {
             # Continue reading next line and append to current_line
             while IFS= read -r next_line; do {
                 current_line+="${next_line%\\}"
+                echo "current_line, after conjunction: {$current_line}" >&2
                 if [[ "$next_line" != *"\\" ]]; then {
                     break
                 }
@@ -240,7 +241,14 @@ function lex_makefile() {
           # Line matched the ruleline regex
           #
           # Remove leading tab
-          current_line="$(awk -F"\t" '{print $2}' <<< "$current_line")"
+            if [[ "$current_line" == "${ruleline_mark_char}"* ]] ; then {
+                current_line="${current_line#"$ruleline_mark_char"}"
+            } else {
+                printf "ERROR: matched ruleline regex but slipped the leading tab removal.\n" >&2
+                printf "Current line: {%s}\n." "$current_line" >&2
+                exit 1
+            }
+            fi
             # We found an expression inside a rule (rule scope)
             [[ "$dbg_print" -gt 0 ]] && printf "\t{RULE_EXPR} -> {%s}, [#%s]," "$current_line" "$rulexpr_i"
             #printf "In rule: {%s}\n" "$last_rulename"
