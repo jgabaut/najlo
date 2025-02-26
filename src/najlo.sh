@@ -202,6 +202,12 @@ function lex_makefile() {
 
         if [[ "$current_line" =~ $rule_rgx ]] ; then {
             # Line matched rule regex
+            if [[ ! -z "$last_rulename" && "$rulexpr_i" -eq 0 ]]; then {
+                # Previous rule didn't have any rule expr
+                [[ "$dbg_print" -gt 0 ]] && printf "Empty rulexpr_arr for $last_rulename\n"
+                rulexpr_arr[$rule_i]=""
+            }
+            fi
             inside_rule=1
             last_rulename="$rulename"
             ingr_i=0
